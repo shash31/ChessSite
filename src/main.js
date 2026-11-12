@@ -411,7 +411,6 @@ function end() {
 
 document.addEventListener('keydown', (event) => {
     if (event.metaKey) return // Allow cmd+v or cmd+a in textarea input when loading fens/pgns
-    event.preventDefault()
     if (event.key === 'ArrowLeft') undo()
     else if (event.key === 'ArrowRight') redo()
     else if (event.key === 'ArrowUp') beginning()
@@ -584,6 +583,7 @@ function loadpgnmodal() {
 
 const engineWorker = new Worker(new URL('./engineworker.js', import.meta.url), { type: 'module' });
 let isThinking = false
+const movetime = document.getElementById('timepermove')
 engineWorker.onmessage = (event) => {
     const { type, bestMove } = event.data
 
@@ -641,7 +641,7 @@ function engineMove() {
     engineWorker.postMessage({
         type: 'SEARCH',
         fen: chessGame.fen(),
-        maxTime: 3000
+        maxTime: movetime.value*1000
     })
 }
 

@@ -130,6 +130,21 @@ main {
     background: white;
   }
 
+  #movetime-container {
+    display: flex;
+    text-align: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #timepermove {
+    width: 3rem;
+    height: 1.5rem;
+    text-align: center;
+    border: 1px solid black;
+    border-radius: 8px;
+  }
+
   .buttons-container {
     display: flex;
     justify-content: center;
