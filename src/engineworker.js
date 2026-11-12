@@ -20,14 +20,14 @@ self.onmessage = (event) => {
   const { type, fen, maxTime } = event.data;
 
   if (type === 'SEARCH' && engine) {
-    const bestMove = engine.ccall(
+    const result = engine.ccall(
       'get_best_move',
       'number',
       ['string', 'number'],
       [fen, maxTime]
     );
 
-    postMessage({ type: 'SEARCH_RESULT', bestMove });
+    postMessage({ type: 'SEARCH_RESULT', result });
   } else if (type === 'NEWGAME' && engine) {
     const result = engine.ccall('init_engine', 'number', [], []); // Initialize
     if (result == 1) {

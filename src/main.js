@@ -220,7 +220,7 @@ function makeMove(from_sq, to_sq) {
     selectedSquare = null
 }
 
-function audiocues(move, undoMove=false) {
+function audiocues(move, undoMove = false) {
     if (chessGame.isCheckmate()) loseSound.play()
     else if (move.isPromotion()) promoteSound.play()
     else if (!undoMove && chessGame.isAttacked(chessGame.findPiece({ type: 'k', color: chessGame.turn() }), move.color)) checkSound.play()
@@ -404,13 +404,13 @@ function undo() {
         moveList.children[Math.floor(cur_move / 2)].firstElementChild.classList.remove('current')
         if (cur_move > 1) moveList.children[Math.floor(cur_move / 2) - 1].lastElementChild.classList.add('current')
     }
-    
+
     cur_move--
-    
+
     const move = chessGame.undo()
 
     audiocues(move, true)
-    
+
     clearBoard()
     parseFEN(chessGame.fen())
     countItUp()
@@ -431,9 +431,9 @@ function redo() {
     }
 
     const move = chessGame.move(span.textContent) // Should be legal as it was made before
-    
+
     audiocues(move)
-    
+
     clearBoard()
     parseFEN(chessGame.fen())
     countItUp()
@@ -473,7 +473,16 @@ document.addEventListener('keydown', (event) => {
     else if (event.key === 'ArrowRight') redo()
     else if (event.key === 'ArrowUp') beginning()
     else if (event.key === 'ArrowDown') end()
-    // else if (event.key === 'd') document.body.classList.toggle('show-outlines') // For debugging css
+    else if (event.key === 'd') document.body.classList.toggle('show-outlines') // For debugging css
+})
+
+const evalbar = document.getElementById('eval-bar-container')
+const evalBarFill = document.getElementById('eval-bar-fill')
+const evalDisp = document.getElementById('eval')
+// const evals = []
+document.getElementById('eval-bar-setting').addEventListener('change', () => {
+    evalbar.classList.toggle('hidden')
+    boardElem.classList.toggle('evalBarOn')
 })
 
 function flipBoard() {
@@ -506,6 +515,12 @@ function newGame() {
     moveList.replaceChildren()
     clearBoard()
     parseFEN(chessGame.fen())
+
+    // Reset eval bar
+    evalBarFill.style.height = '50%'
+    evalDisp.classList.remove('black')
+    evalDisp.textContent = 0.0
+    // evals.length = 0
 
     engineWorker.postMessage({ type: 'NEWGAME' }) // Clearing TT and heuristics, etc.
 }
@@ -643,13 +658,18 @@ const engineWorker = new Worker(new URL('./engineworker.js', import.meta.url), {
 let isThinking = false
 const movetime = document.getElementById('timepermove')
 engineWorker.onmessage = (event) => {
-    const { type, bestMove } = event.data
+    const { type, result } = event.data
 
     if (type == 'READY') {
         console.log('Engine is ready and initialized')
     } else if (type == 'ERROR') {
         console.error('Problem with engine')
     } else if (type == 'SEARCH_RESULT') {
+        console.log('Got search result from engine ')
+
+        const unsigned = result >>> 0;
+        const bestMove = unsigned & 0xFFFF;
+        const score = (unsigned | 0) >> 16;
         const fromSq = bestMove & 0x3F;        // Bits 0-5
         const toSq = (bestMove >> 6) & 0x3F;   // Bits 6-11
         const flags = bestMove >> 12;          // Bits 12-15
@@ -664,6 +684,31 @@ engineWorker.onmessage = (event) => {
             to: fileChar(toSq) + rankChar(toSq),
             promotion: promotionPiece
         });
+
+        // Adjust eval bar
+        // Check for mate
+        if (score > 30000 || score < -30000) {
+            let n = (score > 0) ? (32000 - score + 1) / 2     // we mate the opponent in n moves
+                    : -(32000 + score) / 2;                   // we get mated in n moves
+            evalDisp.textContent = `M${n}`
+            if ((move.color == 'w' && score > 0) || (move.color == 'b' && score < 0)) {
+                evalDisp.classList.remove('black')
+                evalBarFill.style.height = '100%'
+            } else {
+                evalDisp.classList.add('black')
+                evalBarFill.style.height = '0%'
+            }
+        } else if (((score >= 0) && (move.color == 'w')) || ((score <= 0) && (move.color == 'b'))) {
+            evalDisp.classList.remove('black')
+            evalDisp.textContent = `+${Math.abs(score) / 100}`
+        } else {
+            evalDisp.classList.add('black')
+            evalDisp.textContent = `-${Math.abs(score) / 100}`
+        }
+
+        // Score is from side to move's perspective
+        if (move.color == 'w') evalBarFill.style.height = `${(1 / (1 + Math.exp(-score / 400)))*100}%`
+        else evalBarFill.style.height = `${100 - ((1 / (1 + Math.exp(-score / 400)))*100)}%`
 
         updateMoveList(move)
         checkCapture(move)
@@ -697,6 +742,8 @@ function engineMove() {
     boardElem.removeEventListener('click', clicked) // So user can't make moves while engine is thinking
 
     isThinking = true
+
+    console.log('posting message to engine worker')
 
     engineWorker.postMessage({
         type: 'SEARCH',

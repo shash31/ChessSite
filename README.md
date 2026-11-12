@@ -10,9 +10,9 @@ Hooked up to compiled WASM version of [my c++ engine](https://github.com/shash31
 - Loading FENs and PGNs
 - Drag and Drop pieces
 - Sound cues
+- Eval bar
 
 ## Upcoming features/To-Dos:
 - Customizable board and pieces
-- Eval bar
 - Time controls
 
