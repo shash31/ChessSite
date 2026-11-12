@@ -1,6 +1,15 @@
 import './style.css'
 import { Chess } from 'chess.js'
 
+import movesound from './assets/move-self.mp3'
+import checksound from './assets/move-check.mp3'
+import capturesound from './assets/capture.mp3'
+import castlesound from './assets/castle.mp3'
+import promotesound from './assets/promote.mp3'
+import winsound from './assets/win.mp3'
+import losesound from './assets/lose.webm'
+
+
 
 const boardElem = document.getElementById('chessboard')
 const moveList = document.getElementById('move-list')
@@ -12,13 +21,13 @@ const piecesUnicode = {
 
 let chessGame = new Chess()
 
-const moveSound = new Audio('src/assets/move-self.mp3')
-const checkSound = new Audio('src/assets/move-check.mp3')
-const captureSound = new Audio('src/assets/capture.mp3')
-const castleSound = new Audio('src/assets/castle.mp3')
-const promoteSound = new Audio('src/assets/promote.mp3')
-const winSound = new Audio('src/assets/win.mp3')
-const loseSound = new Audio('src/assets/lose.webm')
+const moveSound = new Audio(movesound)
+const checkSound = new Audio(checksound)
+const captureSound = new Audio(capturesound)
+const castleSound = new Audio(castlesound)
+const promoteSound = new Audio(promotesound)
+const winSound = new Audio(winsound)
+const loseSound = new Audio(losesound)
 
 function populateBoard() {
     for (let i = 8; i > 0; i--) {
@@ -182,7 +191,7 @@ function makeMove(from_sq, to_sq) {
         // Regular move (not a promotion)
         const move = chessGame.move({ from: from_sq.dataset.square, to: to_sq.dataset.square })
 
-        audiocues(move)
+        audiocues(move, false, true)
 
         // Checking if we're making a move in the past
         if (cur_move % 2 == 0) {
@@ -220,8 +229,9 @@ function makeMove(from_sq, to_sq) {
     selectedSquare = null
 }
 
-function audiocues(move, undoMove = false) {
-    if (chessGame.isCheckmate()) loseSound.play()
+function audiocues(move, undoMove = false, userMove=false) {
+    if (chessGame.isCheckmate() && !userMove) loseSound.play()
+    else if (chessGame.isCheckmate() && userMove) winSound.play()
     else if (move.isPromotion()) promoteSound.play()
     else if (!undoMove && chessGame.isAttacked(chessGame.findPiece({ type: 'k', color: chessGame.turn() }), move.color)) checkSound.play()
     else if (move.isKingsideCastle() || move.isQueensideCastle()) castleSound.play()

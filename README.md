@@ -15,4 +15,6 @@ Hooked up to compiled WASM version of [my c++ engine](https://github.com/shash31
 ## Upcoming features/To-Dos:
 - Customizable board and pieces
 - Time controls
+- Hint button
+- Principal Variations
 
