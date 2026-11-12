@@ -12,6 +12,14 @@ const piecesUnicode = {
 
 let chessGame = new Chess()
 
+const moveSound = new Audio('src/assets/move-self.mp3')
+const checkSound = new Audio('src/assets/move-check.mp3')
+const captureSound = new Audio('src/assets/capture.mp3')
+const castleSound = new Audio('src/assets/castle.mp3')
+const promoteSound = new Audio('src/assets/promote.mp3')
+const winSound = new Audio('src/assets/win.mp3')
+const loseSound = new Audio('src/assets/lose.webm')
+
 function populateBoard() {
     for (let i = 8; i > 0; i--) {
         for (let j = 0; j < 8; j++) {
@@ -79,6 +87,7 @@ function promote(e) {
         selectedSquare.classList.remove('selected')
         selectedSquare = null
         prom_square = null
+        promoteSound.play()
 
         if (mode.value == 'engine') engineMove()
     } catch (error) {
@@ -173,6 +182,8 @@ function makeMove(from_sq, to_sq) {
         // Regular move (not a promotion)
         const move = chessGame.move({ from: from_sq.dataset.square, to: to_sq.dataset.square })
 
+        audiocues(move)
+
         // Checking if we're making a move in the past
         if (cur_move % 2 == 0) {
             if (moveList.children.length != cur_move / 2) {
@@ -207,6 +218,15 @@ function makeMove(from_sq, to_sq) {
 
     from_sq.classList.remove('selected')
     selectedSquare = null
+}
+
+function audiocues(move, undoMove=false) {
+    if (chessGame.isCheckmate()) loseSound.play()
+    else if (move.isPromotion()) promoteSound.play()
+    else if (!undoMove && chessGame.isAttacked(chessGame.findPiece({ type: 'k', color: chessGame.turn() }), move.color)) checkSound.play()
+    else if (move.isKingsideCastle() || move.isQueensideCastle()) castleSound.play()
+    else if (move.isCapture() || move.isEnPassant()) captureSound.play()
+    else moveSound.play()
 }
 
 
@@ -384,8 +404,13 @@ function undo() {
         moveList.children[Math.floor(cur_move / 2)].firstElementChild.classList.remove('current')
         if (cur_move > 1) moveList.children[Math.floor(cur_move / 2) - 1].lastElementChild.classList.add('current')
     }
+    
     cur_move--
-    chessGame.undo()
+    
+    const move = chessGame.undo()
+
+    audiocues(move, true)
+    
     clearBoard()
     parseFEN(chessGame.fen())
     countItUp()
@@ -405,7 +430,10 @@ function redo() {
         span = moveList.children[Math.floor(cur_move / 2)].lastElementChild
     }
 
-    chessGame.move(span.textContent) // Should be legal as it was made before
+    const move = chessGame.move(span.textContent) // Should be legal as it was made before
+    
+    audiocues(move)
+    
     clearBoard()
     parseFEN(chessGame.fen())
     countItUp()
@@ -445,7 +473,7 @@ document.addEventListener('keydown', (event) => {
     else if (event.key === 'ArrowRight') redo()
     else if (event.key === 'ArrowUp') beginning()
     else if (event.key === 'ArrowDown') end()
-    else if (event.key === 'd') document.body.classList.toggle('show-outlines') // For debugging css
+    // else if (event.key === 'd') document.body.classList.toggle('show-outlines') // For debugging css
 })
 
 function flipBoard() {
@@ -641,6 +669,8 @@ engineWorker.onmessage = (event) => {
         checkCapture(move)
         clearBoard()
         parseFEN(chessGame.fen())
+
+        audiocues(move)
 
         isThinking = false
 
