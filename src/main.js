@@ -27,13 +27,23 @@ function populateBoard() {
             }
             square.style.gridColumn = j + 1
             square.style.gridRow = 9 - i
-            // console.log(square.dataset.square, square.style.gridColumn, square.style.gridRow)
+
+            const pieceContainer = document.createElement('span')
+            pieceContainer.classList.add('piece-container')
+            pieceContainer.draggable = true
+            pieceContainer.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', e.target.parentElement.dataset.square) // Keeping track of which square its being dragged from
+            })
+
+            square.append(pieceContainer)
 
             boardElem.append(square)
         }
     }
     boardElem.addEventListener('click', clicked)
     boardElem.addEventListener('contextmenu', highlight)
+    boardElem.addEventListener('dragover', (e) => { e.preventDefault() }) // To allow piece to be dropped
+    boardElem.addEventListener('drop', dropPiece)
 }
 
 // Promotions options element
@@ -64,8 +74,8 @@ function promote(e) {
         }
         updateMaterialCount()
         checkCapture(move) // Could be a capture promotion
-        prom_square.textContent = piecesUnicode[new_piece]
-        selectedSquare.textContent = ''
+        prom_square.children[0].textContent = piecesUnicode[new_piece]
+        selectedSquare.children[0].textContent = ''
         selectedSquare.classList.remove('selected')
         selectedSquare = null
         prom_square = null
@@ -84,102 +94,121 @@ let blackCapturedPieces = []
 const whitecaptures = document.getElementById('white-captures')
 const blackcaptures = document.getElementById('black-captures')
 let materialCount = 0
-const materialCounts = {'q': 9, 'r': 5, 'b': 3, 'n': 3, 'p': 1}
+const materialCounts = { 'q': 9, 'r': 5, 'b': 3, 'n': 3, 'p': 1 }
 
 const mode = document.getElementById('mode-select')
 
 function clicked(e) {
     if (chessGame.isGameOver()) return
+    const clickedSq = e.target.closest('.square')
 
     if (selectedSquare) {
-        if (selectedSquare == e.target) {
+        if (selectedSquare == clickedSq) {
             selectedSquare = null
-            e.target.classList.remove('selected')
+            clickedSq.classList.remove('selected')
         } else {
-            if (prom_square) return // If promotion menu is open, let promote function handle clicks
-            // Check if move is legal
-            try {
-                // Checking for promotion
-                if (chessGame.get(selectedSquare.dataset.square).type == 'p') {
-                    if ((e.target.dataset.square[1] == '8') && (chessGame.turn() == 'w')) {
-                        promo_options.children[0].textContent = piecesUnicode['Q']
-                        promo_options.children[1].textContent = piecesUnicode['N']
-                        promo_options.children[2].textContent = piecesUnicode['R']
-                        promo_options.children[3].textContent = piecesUnicode['B']
-
-                        prom_square = e.target
-                        promo_options.addEventListener('click', promote)
-
-                        // If board is flipped and white is going down, the promotion menu doesn't go too far off the board
-                        if (e.target.style.gridRow == 8) document.querySelector(`[data-square="${e.target.dataset.square[0] + '5'}"]`).append(promo_options)
-                        else prom_square.append(promo_options)
-                        
-                        return
-                    } else if ((e.target.dataset.square[1] == '1') && (chessGame.turn() == 'b')) {
-                        promo_options.children[0].textContent = piecesUnicode['q']
-                        promo_options.children[1].textContent = piecesUnicode['n']
-                        promo_options.children[2].textContent = piecesUnicode['r']
-                        promo_options.children[3].textContent = piecesUnicode['b']
-
-                        prom_square = e.target
-                        promo_options.addEventListener('click', promote)
-
-                        // If board is flipped and black is going down, the promotion menu doesn't go too far off the board
-                        if (e.target.style.gridRow == 8) document.querySelector(`[data-square="${e.target.dataset.square[0] + '4'}"]`).append(promo_options)
-                        else prom_square.append(promo_options)
-
-                        return
-                    }
-                }
-
-                // Regular move (not a promotion)
-                const move = chessGame.move({ from: selectedSquare.dataset.square, to: e.target.dataset.square })
-
-                // Checking if we're making a move in the past
-                if (cur_move % 2 == 0) {
-                    if (moveList.children.length != cur_move / 2) {
-                        for (let i = moveList.children.length - 1; i >= cur_move / 2; i--) { // Removing all previously made moves
-                            moveList.children[i].remove()
-                        }
-
-                    }
-                } else {
-                    if (moveList.children.length != Math.ceil(cur_move / 2) || (moveList.lastElementChild.children.length != 1)) {
-                        for (let i = moveList.children.length - 1; i >= Math.ceil(cur_move / 2); i--) { // Removing all previously made moves
-                            moveList.children[i].remove()
-                        }
-                        // Remove last black move
-                        moveList.lastElementChild.lastElementChild.remove()
-                    }
-                }
-
-                updateMoveList(move)
-
-                dealWithSpecialMoves(move)
-
-                checkCapture(move)
-
-                selectedSquare.classList.remove('selected')
-                e.target.textContent = selectedSquare.textContent
-                selectedSquare.textContent = ''
-                selectedSquare = null
-
-                if (mode.value == 'engine') engineMove()
-            } catch (error) {
-                console.log(error)
-                selectedSquare.classList.remove('selected')
-                selectedSquare = null
-            }
+            makeMove(selectedSquare, clickedSq)
         }
     } else {
         // Only allow selection of a piece if its that side's turn to move
-        let piece = chessGame.get(e.target.dataset.square)
+        let piece = chessGame.get(clickedSq.dataset.square)
         if (piece && (piece.color == chessGame.turn())) {
-            selectedSquare = e.target
+            selectedSquare = clickedSq
             selectedSquare.classList.add('selected')
         }
     }
 }
+
+function dropPiece(e) {
+    const from_sq = document.querySelector(`[data-square=${e.dataTransfer.getData('text/plain')}]`)
+    const to_sq = e.target.closest('.square')
+
+    makeMove(from_sq, to_sq)
+}
+
+function makeMove(from_sq, to_sq) {
+    if (prom_square) return // If promotion menu is open, let promote function handle clicks
+
+    // Checking for promotion
+    if (chessGame.get(from_sq.dataset.square).type == 'p') {
+        if (((to_sq.dataset.square[1] == '8') && (chessGame.turn() == 'w')) || ((to_sq.dataset.square[1] == '1') && (chessGame.turn() == 'b'))) {
+            try {
+                // Trying promotion first and undoing to see if its legal, then setting up promotion menu
+                chessGame.move({ from: from_sq.dataset.square, to: to_sq.dataset.square, promotion: 'q' })
+                chessGame.undo()
+
+                if (chessGame.turn() == 'w') {
+                    promo_options.children[0].textContent = piecesUnicode['Q']
+                    promo_options.children[1].textContent = piecesUnicode['N']
+                    promo_options.children[2].textContent = piecesUnicode['R']
+                    promo_options.children[3].textContent = piecesUnicode['B']
+                } else {
+                    promo_options.children[0].textContent = piecesUnicode['q']
+                    promo_options.children[1].textContent = piecesUnicode['n']
+                    promo_options.children[2].textContent = piecesUnicode['r']
+                    promo_options.children[3].textContent = piecesUnicode['b']
+                }
+
+                prom_square = to_sq
+                promo_options.addEventListener('click', promote)
+
+                // If board is flipped and player is going down, the promotion menu doesn't go too far off the board
+                if (to_sq.style.gridRow == 8) {
+                    if (chessGame.turn() == 'w') document.querySelector(`[data-square="${to_sq.dataset.square[0] + '5'}"]`).append(promo_options)
+                    else document.querySelector(`[data-square="${to_sq.dataset.square[0] + '4'}"]`).append(promo_options)
+                }
+                else prom_square.append(promo_options)
+            } catch (error) {
+                console.log(error)
+                from_sq.classList.remove('selected')
+                from_sq = null
+            }
+
+            return
+        }
+    }
+
+    // Checking move is legal first
+    try {
+        // Regular move (not a promotion)
+        const move = chessGame.move({ from: from_sq.dataset.square, to: to_sq.dataset.square })
+
+        // Checking if we're making a move in the past
+        if (cur_move % 2 == 0) {
+            if (moveList.children.length != cur_move / 2) {
+                for (let i = moveList.children.length - 1; i >= cur_move / 2; i--) { // Removing all previously made moves
+                    moveList.children[i].remove()
+                }
+
+            }
+        } else {
+            if (moveList.children.length != Math.ceil(cur_move / 2) || (moveList.lastElementChild.children.length != 1)) {
+                for (let i = moveList.children.length - 1; i >= Math.ceil(cur_move / 2); i--) { // Removing all previously made moves
+                    moveList.children[i].remove()
+                }
+                // Remove last black move
+                moveList.lastElementChild.lastElementChild.remove()
+            }
+        }
+
+        updateMoveList(move)
+
+        dealWithSpecialMoves(move)
+
+        checkCapture(move)
+
+        to_sq.children[0].textContent = from_sq.children[0].textContent
+        from_sq.children[0].textContent = ''
+
+        if (mode.value == 'engine') engineMove()
+    } catch (error) {
+        console.log(error)
+    }
+
+    from_sq.classList.remove('selected')
+    selectedSquare = null
+}
+
 
 function updateMoveList(move) {
     if (cur_move != 0) moveList.lastElementChild.lastElementChild.classList.remove('current')
@@ -199,9 +228,9 @@ function updateMoveList(move) {
         }
         moveList.lastElementChild.append(' ', movetext)
     }
-    
+
     // Adding class to span tag after appending to moveList so mutation observer can notice and auto scroll
-    movetext.classList.add('current') 
+    movetext.classList.add('current')
 
     cur_move++
 }
@@ -210,19 +239,19 @@ function dealWithSpecialMoves(move) {
     // Deal with special moves like en passant and castling
     if (move.isKingsideCastle()) {
         if (move.color == 'w') {
-            document.querySelector(`[data-square="h1"]`).textContent = ''
-            document.querySelector(`[data-square="f1"]`).textContent = piecesUnicode['R']
+            document.querySelector(`[data-square="h1"]`).children[0].textContent = ''
+            document.querySelector(`[data-square="f1"]`).children[0].textContent = piecesUnicode['R']
         } else {
-            document.querySelector(`[data-square="h8"]`).textContent = ''
-            document.querySelector(`[data-square="f8"]`).textContent = piecesUnicode['r']
+            document.querySelector(`[data-square="h8"]`).children[0].textContent = ''
+            document.querySelector(`[data-square="f8"]`).children[0].textContent = piecesUnicode['r']
         }
     } else if (move.isQueensideCastle()) {
         if (move.color == 'w') {
-            document.querySelector(`[data-square="a1"]`).textContent = ''
-            document.querySelector(`[data-square="d1"]`).textContent = piecesUnicode['R']
+            document.querySelector(`[data-square="a1"]`).children[0].textContent = ''
+            document.querySelector(`[data-square="d1"]`).children[0].textContent = piecesUnicode['R']
         } else {
-            document.querySelector(`[data-square="a8"]`).textContent = ''
-            document.querySelector(`[data-square="d8"]`).textContent = piecesUnicode['r']
+            document.querySelector(`[data-square="a8"]`).children[0].textContent = ''
+            document.querySelector(`[data-square="d8"]`).children[0].textContent = piecesUnicode['r']
         }
     }
 }
@@ -239,12 +268,12 @@ function checkCapture(move) {
         updateMaterialCount()
     } else if (move.isEnPassant()) { // En passant is not considered regular capture in chess.js
         if (move.color == 'w') {
-            document.querySelector(`[data-square="${e.target.dataset.square[0] + '5'}"]`).textContent = ''
+            document.querySelector(`[data-square="${e.target.dataset.square[0] + '5'}"]`).children[0].textContent = ''
             whiteCapturedPieces.push('p')
             materialCount += 1
         }
         else {
-            document.querySelector(`[data-square="${e.target.dataset.square[0] + '4'}"]`).textContent = ''
+            document.querySelector(`[data-square="${e.target.dataset.square[0] + '4'}"]`).children[0].textContent = ''
             blackCapturedPieces.push('P')
             materialCount -= 1
         }
@@ -255,9 +284,9 @@ function checkCapture(move) {
 function updateMaterialCount() {
     whitecaptures.textContent = 'White: '
     blackcaptures.textContent = 'Black: '
-    
-    whiteCapturedPieces.forEach((c) => {whitecaptures.textContent += piecesUnicode[c]})
-    blackCapturedPieces.forEach((c) => {blackcaptures.textContent += piecesUnicode[c]})
+
+    whiteCapturedPieces.forEach((c) => { whitecaptures.textContent += piecesUnicode[c] })
+    blackCapturedPieces.forEach((c) => { blackcaptures.textContent += piecesUnicode[c] })
 
     if (materialCount > 0) whitecaptures.textContent += ` +${materialCount}`
     else if (materialCount < 0) blackcaptures.textContent += ` +${Math.abs(materialCount)}`
@@ -271,8 +300,8 @@ function countItUp() {
     for (const piece in materialCounts) {
         const wlocs = chessGame.findPiece({ type: piece, color: 'w' })
         const blocs = chessGame.findPiece({ type: piece, color: 'b' })
-        materialCount += materialCounts[piece]*wlocs.length
-        materialCount -= materialCounts[piece]*blocs.length
+        materialCount += materialCounts[piece] * wlocs.length
+        materialCount -= materialCounts[piece] * blocs.length
 
         let pieceCount = 2
         if (piece == 'q') {
@@ -315,7 +344,7 @@ populateBoard()
 
 function clearBoard() {
     for (const square of boardElem.children) {
-        square.textContent = ''
+        square.children[0].textContent = ''
     }
 }
 
@@ -337,7 +366,8 @@ function parseFEN(fen) {
         }
 
         // Must be a piece assuming valid FEN
-        boardElem.children[(8 - rank) * 8 + file].textContent = piecesUnicode[char]
+        // Adding text inside the piece-container span tag so its draggable
+        boardElem.children[(8 - rank) * 8 + file].children[0].textContent = piecesUnicode[char]
         file++
     }
 }
@@ -374,7 +404,7 @@ function redo() {
         moveList.children[Math.floor(cur_move / 2)].firstElementChild.classList.remove('current')
         span = moveList.children[Math.floor(cur_move / 2)].lastElementChild
     }
-    
+
     chessGame.move(span.textContent) // Should be legal as it was made before
     clearBoard()
     parseFEN(chessGame.fen())
@@ -449,7 +479,7 @@ function newGame() {
     clearBoard()
     parseFEN(chessGame.fen())
 
-    engineWorker.postMessage({type: 'NEWGAME'}) // Clearing TT and heuristics, etc.
+    engineWorker.postMessage({ type: 'NEWGAME' }) // Clearing TT and heuristics, etc.
 }
 
 async function copyfen() {
@@ -595,16 +625,16 @@ engineWorker.onmessage = (event) => {
         const fromSq = bestMove & 0x3F;        // Bits 0-5
         const toSq = (bestMove >> 6) & 0x3F;   // Bits 6-11
         const flags = bestMove >> 12;          // Bits 12-15
-        const promotionPiece = (flags >= 8) ? ['n', 'b', 'r', 'q'][(flags - 8)%4] : null;
+        const promotionPiece = (flags >= 8) ? ['n', 'b', 'r', 'q'][(flags - 8) % 4] : null;
 
         const fileChar = (sq) => String.fromCharCode('a'.charCodeAt(0) + (sq % 8));
         const rankChar = (sq) => String((sq >> 3) + 1);
 
         // No need for try catch block as move from engine should be legal
-        const move = chessGame.move({ 
-          from: fileChar(fromSq) + rankChar(fromSq),
-          to: fileChar(toSq) + rankChar(toSq),
-          promotion: promotionPiece
+        const move = chessGame.move({
+            from: fileChar(fromSq) + rankChar(fromSq),
+            to: fileChar(toSq) + rankChar(toSq),
+            promotion: promotionPiece
         });
 
         updateMoveList(move)
@@ -635,13 +665,13 @@ function engineMove() {
     if (isThinking) return
 
     boardElem.removeEventListener('click', clicked) // So user can't make moves while engine is thinking
-    
+
     isThinking = true
-    
+
     engineWorker.postMessage({
         type: 'SEARCH',
         fen: chessGame.fen(),
-        maxTime: movetime.value*1000
+        maxTime: movetime.value * 1000
     })
 }
 

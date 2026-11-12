@@ -8,9 +8,9 @@ Hooked up to compiled WASM version of [my c++ engine](https://github.com/shash31
 - Move log and game navigation
 - FEN and PGN copy functionality for saving games/positions
 - Loading FENs and PGNs
+- Drag and Drop pieces
 
 ## Upcoming features/To-Dos:
-- Drag and drop pieces
 - Sound cues
 - Customizable board and pieces
 - Eval bar
